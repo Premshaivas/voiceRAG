@@ -1,0 +1,25 @@
+name: VoiceRAG live integration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  integration:
+    if: ${{ secrets.ASSEMBLYAI_API_KEY != '' && secrets.DATABASE_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - name: Configure provider secrets
+        run: |
+          sed -i "s|ASSEMBLYAI_API_KEY=.*|ASSEMBLYAI_API_KEY=${{ secrets.ASSEMBLYAI_API_KEY }}|" .env
+          sed -i "s|DATABASE_URL=.*|DATABASE_URL=${{ secrets.DATABASE_URL }}|" .env
+          sed -i "s|AUTH_REQUIRED=.*|AUTH_REQUIRED=false|" .env
+      - run: docker compose up -d postgres redis qdrant minio minio-init clamav
+      - run: docker compose run --rm migrate
+      - run: docker compose up -d api worker
+      - run: python3 scripts/integration_probe.py --api-url http://127.0.0.1:8000 --check-llm
+      - if: always()
+        run: docker compose logs --tail=200 api worker
+      - if: always()
+        run: docker compose down -v

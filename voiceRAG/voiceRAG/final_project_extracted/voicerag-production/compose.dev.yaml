@@ -1,0 +1,118 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: voicerag
+      POSTGRES_PASSWORD: voicerag
+      POSTGRES_DB: voicerag
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voicerag -d voicerag"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - redis_data:/data
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.2
+    ports: ["127.0.0.1:6333:6333"]
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333'" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  clamav:
+    image: clamav/clamav:stable
+    ports: ["127.0.0.1:3310:3310"]
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "3310"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build: .
+    command: alembic upgrade head
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://voicerag:voicerag@postgres:5432/voicerag
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  api:
+    build: .
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file: .env
+    environment:
+      VECTOR_BACKEND: qdrant
+      QDRANT_URL: http://qdrant:6333
+      AUTH_REQUIRED: "false"
+      DATABASE_URL: postgresql+asyncpg://voicerag:voicerag@postgres:5432/voicerag
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://127.0.0.1:9000
+    ports: ["127.0.0.1:8000:8000"]
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      qdrant: {condition: service_healthy}
+      clamav: {condition: service_healthy}
+
+  worker:
+    build: .
+    command: celery -A backend.celery_app.celery_app worker --loglevel=INFO --queues=transcription
+    env_file: .env
+    environment:
+      VECTOR_BACKEND: qdrant
+      QDRANT_URL: http://qdrant:6333
+      AUTH_REQUIRED: "false"
+      DATABASE_URL: postgresql+asyncpg://voicerag:voicerag@postgres:5432/voicerag
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://127.0.0.1:9000
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      qdrant: {condition: service_healthy}
+
+  beat:
+    build: .
+    command: celery -A backend.celery_app.celery_app beat --loglevel=INFO
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://voicerag:voicerag@postgres:5432/voicerag
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app/backend
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
