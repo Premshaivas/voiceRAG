@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 
 from .auth import get_current_user
 from .db import AuditEvent, Document, Transcript, User, UserRole

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 from dataclasses import dataclass, field
 from typing import Any
@@ -10,7 +9,6 @@ from urllib.parse import parse_qs
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from .auth import decode_access_token
-from .config import settings
 
 ASSEMBLYAI_VOICE_AGENT_URL = "wss://agents.assemblyai.com/v1/ws"
 router = APIRouter(tags=["voice-agent"])

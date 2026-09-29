@@ -7,7 +7,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select
 
 from .auth import get_current_user
 from .db import Document, DocumentStatus, Job, JobStatus, OutboxEvent, User

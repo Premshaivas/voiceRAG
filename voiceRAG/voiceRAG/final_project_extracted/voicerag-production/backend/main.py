@@ -23,6 +23,7 @@ from .session_routes import router as session_router
 from .transcription import AssemblyAITranscriber
 from .voice_agent import router as voice_agent_router
 from .transcript_routes import router as transcript_router
+from .video_routes import router as video_router
 from .workspace_routes import router as workspace_router
 from .observability import Metrics, observe_request
 
@@ -46,7 +47,14 @@ def create_app(*, app_settings: Settings | None = None, pipeline: Any = None, tr
         yield
         await close_database(active_engine)
 
-    app = FastAPI(title="VoiceRAG API", version="0.5.0", lifespan=lifespan)
+    app = FastAPI(
+        title="VoiceRAG API",
+        version="0.5.0",
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
     app.state.settings = active_settings
     app.state.session_factory = session_factory
     app.state.pipeline = pipeline
@@ -96,6 +104,7 @@ def create_app(*, app_settings: Settings | None = None, pipeline: Any = None, tr
     app.include_router(transcript_router)
     app.include_router(admin_router)
     app.include_router(workspace_router)
+    app.include_router(video_router)
     return app
 
 

@@ -3,8 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import mimetypes
-import os
-import tempfile
 import uuid
 from pathlib import Path
 from typing import Annotated, Any
@@ -13,7 +11,6 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import get_current_user
 from .db import Document, DocumentStatus, Transcript, User

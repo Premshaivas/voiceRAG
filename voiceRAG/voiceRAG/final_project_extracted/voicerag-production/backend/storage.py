@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 from fastapi import UploadFile
 
 from .config import settings
 
-ALLOWED_EXTENSIONS = {".aac", ".flac", ".m4a", ".mp3", ".mp4", ".mpeg", ".mpga", ".ogg", ".opus", ".wav", ".webm"}
+ALLOWED_EXTENSIONS = {".aac", ".avi", ".flac", ".m4a", ".mkv", ".mov", ".mp3", ".mp4", ".mpeg", ".mpga", ".ogg", ".opus", ".wav", ".webm"}
 CHUNK_BYTES = 1024 * 1024
 
 
