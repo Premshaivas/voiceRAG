@@ -67,6 +67,7 @@ services:
     env_file: .env
     volumes:
       - ./data:/app/data
+      - ./data/hf-cache-copy:/home/app/.cache/huggingface
     environment:
       DATABASE_URL: postgresql+asyncpg://voicerag:voicerag@postgres:5432/voicerag
       REDIS_URL: redis://redis:6379/0
@@ -90,6 +91,8 @@ services:
     build: .
     command: celery -A backend.celery_app.celery_app worker --loglevel=INFO --queues=transcription
     env_file: .env
+    volumes:
+      - ./data/hf-cache-copy:/home/app/.cache/huggingface
     environment:
       DATABASE_URL: postgresql+asyncpg://voicerag:voicerag@postgres:5432/voicerag
       REDIS_URL: redis://redis:6379/0

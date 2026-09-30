@@ -12,15 +12,16 @@ import uuid
 from pathlib import Path
 from typing import Annotated
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request as FastAPIRequest, UploadFile
 from pydantic import BaseModel, Field
 
 from .auth import get_current_user
-from .config import settings
+from .config import Settings, settings
 from .db import Document, DocumentStatus, Transcript, User
+from .llm_client import complete_chat
 
 router = APIRouter(prefix="/api", tags=["video"])
 
@@ -205,23 +206,21 @@ def _extract_heuristic_points(text: str, title: str) -> dict:
     }
 
 
-def _generate_key_points(text: str, title: str) -> dict:
-    """Use the LLM gateway to extract key points and a summary from transcript text.
+def _generate_key_points(text: str, title: str, config: Settings | None = None) -> dict:
+    """Use the configured LLM provider to extract key points and a summary.
     
-    Falls back gracefully to heuristic extraction if the LLM gateway is unreachable or unconfigured.
+    Falls back gracefully to heuristic extraction if the LLM provider is unavailable.
     """
-    if not settings.assemblyai_api_key or not text.strip():
+    config = config or settings
+    if not text.strip():
         return _extract_heuristic_points(text, title)
 
     # Truncate very long transcripts to fit context window
     max_chars = 30_000
     truncated = text[:max_chars] + ("..." if len(text) > max_chars else "")
 
-    payload = {
-        "model": settings.llm_gateway_model,
-        "temperature": 0.2,
-        "max_tokens": 1200,
-        "messages": [
+    answer_text = complete_chat(
+        [
             {
                 "role": "system",
                 "content": (
@@ -233,27 +232,16 @@ def _generate_key_points(text: str, title: str) -> dict:
                     "Do NOT output markdown fences, backticks, or any additional explanation. Output raw JSON only."
                 ),
             },
-            {
-                "role": "user",
-                "content": f"Title: {title}\n\nTranscript:\n{truncated}",
-            },
+            {"role": "user", "content": f"Title: {title}\n\nTranscript:\n{truncated}"},
         ],
-    }
-
-    request = Request(
-        settings.llm_gateway_url,
-        data=json.dumps(payload).encode(),
-        method="POST",
-        headers={
-            "Authorization": settings.assemblyai_api_key,
-            "Content-Type": "application/json",
-        },
+        temperature=0.2,
+        max_tokens=1200,
+        config=config,
+        purpose="video summary",
     )
     try:
-        with urlopen(request, timeout=90) as response:
-            result = json.loads(response.read().decode())
-        
-        answer_text = result["choices"][0]["message"]["content"].strip()
+        if not answer_text:
+            return _extract_heuristic_points(text, title)
         answer_text = re.sub(r"^```(?:json)?\s*", "", answer_text)
         answer_text = re.sub(r"\s*```$", "", answer_text)
         parsed = json.loads(answer_text)
@@ -346,7 +334,7 @@ async def import_video_url(
 
             # 7. Generate key points and summary
             key_points_data = await asyncio.to_thread(
-                _generate_key_points, text, doc_title
+                _generate_key_points, text, doc_title, request.app.state.settings
             )
 
             # 8. Save transcript and update status
@@ -478,7 +466,7 @@ async def upload_video_file(
                 )
 
             key_points_data = await asyncio.to_thread(
-                _generate_key_points, text, doc_title
+                _generate_key_points, text, doc_title, request.app.state.settings
             )
 
             async with request.app.state.session_factory() as session:
@@ -534,7 +522,7 @@ async def get_key_points(
         text = document.transcript.text
         title = document.title
 
-    result = await asyncio.to_thread(_generate_key_points, text, title)
+    result = await asyncio.to_thread(_generate_key_points, text, title, request.app.state.settings)
 
     return KeyPointsResponse(
         document_id=document_id,

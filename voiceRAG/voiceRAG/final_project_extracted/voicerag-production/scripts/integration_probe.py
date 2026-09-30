@@ -62,18 +62,32 @@ def main() -> int:
     run("MinIO/S3", minio)
 
     def assemblyai() -> None:
-        request = urllib.request.Request("https://api.assemblyai.com/v2/user", headers={"authorization": os.environ["ASSEMBLYAI_API_KEY"]})
+        request = urllib.request.Request("https://api.assemblyai.com/v2/transcript?limit=1", headers={"authorization": os.environ["ASSEMBLYAI_API_KEY"]})
         with urllib.request.urlopen(request, timeout=15) as response:
-            assert response.status == 200
+            result = json.loads(response.read().decode())
+            assert response.status == 200 and "transcripts" in result
         print("PASS AssemblyAI credentials")
     run("AssemblyAI", assemblyai)
 
     if args.check_llm:
         def llm() -> None:
-            result = http_json(os.getenv("LLM_GATEWAY_URL", "https://llm-gateway.assemblyai.com/v1/chat/completions"), headers={"Authorization": os.environ["ASSEMBLYAI_API_KEY"]}, method="POST", payload={"model": os.getenv("LLM_GATEWAY_MODEL", "claude-sonnet-4-5-20250929"), "temperature": 0, "max_tokens": 1, "messages": [{"role": "user", "content": "Reply with OK."}]})
+            provider = os.getenv("LLM_PROVIDER", "assemblyai").strip().lower()
+            if provider == "assemblyai":
+                endpoint = os.getenv("LLM_GATEWAY_URL", "https://llm-gateway.assemblyai.com/v1/chat/completions")
+                model = os.getenv("LLM_GATEWAY_MODEL", "claude-sonnet-4-6")
+                authorization = os.environ["ASSEMBLYAI_API_KEY"]
+            elif provider == "openai_compatible":
+                endpoint = os.getenv("LLM_API_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+                if not endpoint.endswith("/chat/completions"):
+                    endpoint += "/chat/completions"
+                model = os.getenv("LLM_API_MODEL", "gpt-4o-mini")
+                authorization = f"Bearer {os.environ['LLM_API_KEY']}"
+            else:
+                raise ValueError("LLM_PROVIDER must be assemblyai or openai_compatible")
+            result = http_json(endpoint, headers={"Authorization": authorization}, method="POST", payload={"model": model, "temperature": 0, "max_tokens": 1, "messages": [{"role": "user", "content": "Reply with OK."}]})
             assert result.get("choices"), result
-            print("PASS LLM Gateway")
-        run("LLM Gateway", llm)
+            print(f"PASS LLM provider ({provider})")
+        run("LLM provider", llm)
     else:
         print("SKIP LLM Gateway: rerun with --check-llm")
 

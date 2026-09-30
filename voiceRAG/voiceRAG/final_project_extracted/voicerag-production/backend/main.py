@@ -41,7 +41,7 @@ def create_app(*, app_settings: Settings | None = None, pipeline: Any = None, tr
         if app.state.transcriber is None:
             app.state.transcriber = AssemblyAITranscriber()
         if app.state.answer_engine is None:
-            app.state.answer_engine = GroundedAnswerEngine(app.state.pipeline)
+            app.state.answer_engine = GroundedAnswerEngine(app.state.pipeline, config=active_settings)
         if app.state.storage is None:
             app.state.storage = ObjectStorage(active_settings)
         yield

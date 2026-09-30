@@ -475,7 +475,7 @@ export function VideoIntelligencePanel({
                     </div>
                     <div className="answer-label">
                       {item.answer_mode === 'transcript_excerpt'
-                        ? '📄 TRANSCRIPT EXCERPT · LLM GATEWAY ACCESS REQUIRED FOR GENERATED ANSWERS'
+                        ? '📄 TRANSCRIPT EXCERPT · LLM ANSWER UNAVAILABLE'
                         : item.grounded ? '✅ GROUNDED FROM THIS VIDEO' : '⚠️ NO VERIFIED SOURCE'}
                     </div>
                     {item.grounded && item.confidence !== undefined && (

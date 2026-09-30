@@ -25,6 +25,16 @@ def main() -> int:
             errors.append(f"{name} is missing or invalid")
     if os.getenv("VECTOR_BACKEND", "qdrant").lower() == "qdrant" and not os.getenv("QDRANT_COLLECTION", "").strip():
         errors.append("QDRANT_COLLECTION is required for Qdrant")
+    provider = os.getenv("LLM_PROVIDER", "assemblyai").strip().lower()
+    if provider not in {"assemblyai", "openai_compatible"}:
+        errors.append("LLM_PROVIDER must be assemblyai or openai_compatible")
+    elif provider == "openai_compatible":
+        if not os.getenv("LLM_API_KEY", "").strip():
+            errors.append("LLM_API_KEY is required for openai_compatible")
+        if urlparse(os.getenv("LLM_API_BASE_URL", "")).scheme not in {"http", "https"}:
+            errors.append("LLM_API_BASE_URL must be an http(s) URL for openai_compatible")
+        if not os.getenv("LLM_API_MODEL", "").strip():
+            errors.append("LLM_API_MODEL is required for openai_compatible")
     if errors:
         print("Environment validation failed:")
         for error in errors:

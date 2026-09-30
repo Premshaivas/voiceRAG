@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,8 +13,12 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/voicerag.db"
     assemblyai_api_key: str | None = None
     assemblyai_speech_model: str = "universal-3-5-pro"
-    llm_gateway_model: str = "claude-sonnet-4-5-20250929"
+    llm_provider: Literal["assemblyai", "openai_compatible"] = "assemblyai"
+    llm_gateway_model: str = "claude-sonnet-4-6"
     llm_gateway_url: str = "https://llm-gateway.assemblyai.com/v1/chat/completions"
+    llm_api_key: str | None = None
+    llm_api_base_url: str = "https://api.openai.com/v1"
+    llm_api_model: str = "gpt-4o-mini"
     vector_backend: str = "chroma"
     chroma_dir: str = "./data/chroma"
     qdrant_url: str = "http://localhost:6333"
