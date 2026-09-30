@@ -8,7 +8,9 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("users", sa.Column("role", sa.Enum("user", "admin", name="userrole"), nullable=True))
+    userrole_enum = sa.Enum("user", "admin", name="userrole")
+    userrole_enum.create(op.get_bind(), checkfirst=True)
+    op.add_column("users", sa.Column("role", userrole_enum, nullable=True))
     op.execute("UPDATE users SET role = 'user' WHERE role IS NULL")
     op.alter_column("users", "role", nullable=False, server_default="user")
     op.create_index("ix_users_role", "users", ["role"])
