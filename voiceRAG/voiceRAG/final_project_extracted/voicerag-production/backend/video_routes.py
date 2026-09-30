@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Annotated
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request as FastAPIRequest, UploadFile
 from pydantic import BaseModel, Field
@@ -54,6 +55,9 @@ def _download_video(url: str, output_dir: str) -> tuple[str, str]:
 
     Falls back to a simple HTTP download for direct file URLs.
     """
+    host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    is_youtube = host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com")
+
     # Try yt-dlp first (handles YouTube, Vimeo, etc.)
     try:
         output_template = os.path.join(output_dir, "%(id)s.%(ext)s")
@@ -64,9 +68,9 @@ def _download_video(url: str, output_dir: str) -> tuple[str, str]:
                 "--extract-audio",
                 "--audio-format", "mp3",
                 "--audio-quality", "3",
+                "--no-simulate",
                 "-o", output_template,
                 "--print", "title",
-                "--print", "filename",
                 url,
             ],
             capture_output=True,
@@ -80,14 +84,23 @@ def _download_video(url: str, output_dir: str) -> tuple[str, str]:
             for file in Path(output_dir).iterdir():
                 if file.suffix.lower() in {".mp3", ".m4a", ".wav", ".webm", ".ogg", ".opus"}:
                     return str(file), title
+            if is_youtube:
+                raise RuntimeError("yt-dlp completed but did not produce a supported audio file")
             # If yt-dlp extracted with another extension
             for file in Path(output_dir).iterdir():
                 if file.is_file() and file.suffix:
                     return str(file), title
+        elif is_youtube:
+            details = (result.stderr or result.stdout or "yt-dlp could not download this video").strip()
+            raise RuntimeError(f"Could not download the YouTube video: {details[-800:]}")
     except FileNotFoundError:
+        if is_youtube:
+            raise RuntimeError("YouTube imports require yt-dlp; rebuild the API image with the current requirements")
         pass  # yt-dlp not installed, try direct download
     except subprocess.TimeoutExpired:
         raise RuntimeError("Video download timed out (10 minutes)")
+    except RuntimeError:
+        raise
 
     # Fallback: direct HTTP download for mp4/webm/mp3 URLs
     try:
@@ -249,7 +262,7 @@ def _generate_key_points(text: str, title: str) -> dict:
             "summary": parsed.get("summary") or _extract_heuristic_points(text, title)["summary"],
         }
     except Exception:
-        # Fallback to heuristic extraction
+    # Fallback to heuristic extraction
         return _extract_heuristic_points(text, title)
 
 
@@ -551,6 +564,11 @@ async def ask_video_question(
             raise HTTPException(status_code=422, detail="Video transcript is not ready yet")
 
     raw_sources = request.app.state.pipeline.search(body.question, body.limit, document_id)
+    raw_sources = [
+        source
+        for source in raw_sources
+        if source.distance is None or source.distance <= request.app.state.settings.retrieval_max_distance
+    ]
     if not raw_sources:
         return {
             "answer": "No relevant parts found in the video transcript for this question.",
@@ -591,8 +609,9 @@ async def ask_video_question(
     
     return {
         "answer": f"Based on the lecture transcript [S1]: {ts_prefix}{best_chunk.text}",
+        "answer_mode": "transcript_excerpt",
         "grounded": True,
         "citations": ["S1"],
-        "confidence": 0.88,
+        "confidence": round(max(0.0, min(1.0, 1.0 - (best_chunk.distance or 0.0))), 3),
         "sources": sources_data,
     }

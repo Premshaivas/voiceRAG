@@ -6,6 +6,7 @@ type Source = { citation: string; text: string; metadata: Record<string, unknown
 type QAItem = {
   question: string
   answer: string
+  answer_mode?: string
   grounded: boolean
   confidence?: number
   citation_coverage?: number
@@ -185,6 +186,7 @@ export function VideoIntelligencePanel({
       const newItem: QAItem = {
         question: query,
         answer: answerData.answer || 'No answer available',
+        answer_mode: answerData.answer_mode,
         grounded: answerData.grounded ?? true,
         confidence: answerData.confidence,
         citation_coverage: answerData.citation_coverage,
@@ -472,7 +474,9 @@ export function VideoIntelligencePanel({
                       <strong>You asked:</strong> {item.question}
                     </div>
                     <div className="answer-label">
-                      {item.grounded ? '✅ GROUNDED FROM THIS VIDEO' : '⚠️ NO VERIFIED SOURCE'}
+                      {item.answer_mode === 'transcript_excerpt'
+                        ? '📄 TRANSCRIPT EXCERPT · LLM GATEWAY ACCESS REQUIRED FOR GENERATED ANSWERS'
+                        : item.grounded ? '✅ GROUNDED FROM THIS VIDEO' : '⚠️ NO VERIFIED SOURCE'}
                     </div>
                     {item.grounded && item.confidence !== undefined && (
                       <div className="answer-metrics">

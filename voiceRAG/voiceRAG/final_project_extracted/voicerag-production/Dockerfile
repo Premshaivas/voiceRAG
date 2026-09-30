@@ -5,8 +5,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PYTHONPATH=/
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/* \
     && groupadd --system app \
     && useradd --system --gid app --create-home --home-dir /home/app app
+ARG TARGETARCH
+RUN python -c "import os, urllib.request, zipfile; arch='aarch64' if os.environ.get('TARGETARCH')=='arm64' else 'x86_64'; url=f'https://github.com/denoland/deno/releases/download/v2.9.7/deno-{arch}-unknown-linux-gnu.zip'; path='/tmp/deno.zip'; urllib.request.urlretrieve(url, path); z=zipfile.ZipFile(path); z.extract('deno','/usr/local/bin'); os.chmod('/usr/local/bin/deno',0o755); os.remove(path)"
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.5.1+cpu" \
+    && pip install -r requirements.txt
 COPY backend ./backend
 COPY alembic.ini .
 COPY alembic ./alembic

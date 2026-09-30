@@ -56,6 +56,8 @@ services:
     build: .
     command: alembic upgrade head
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://voicerag:voicerag@postgres:5432/voicerag
     depends_on:
       postgres: {condition: service_healthy}
       minio-init: {condition: service_completed_successfully}
@@ -63,7 +65,13 @@ services:
     build: .
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000
     env_file: .env
+    volumes:
+      - ./data:/app/data
     environment:
+      DATABASE_URL: postgresql+asyncpg://voicerag:voicerag@postgres:5432/voicerag
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      CLAMAV_HOST: clamav
       VECTOR_BACKEND: qdrant
       QDRANT_URL: http://qdrant:6333
       AUTH_REQUIRED: "true"
@@ -83,6 +91,10 @@ services:
     command: celery -A backend.celery_app.celery_app worker --loglevel=INFO --queues=transcription
     env_file: .env
     environment:
+      DATABASE_URL: postgresql+asyncpg://voicerag:voicerag@postgres:5432/voicerag
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      CLAMAV_HOST: clamav
       VECTOR_BACKEND: qdrant
       QDRANT_URL: http://qdrant:6333
       AUTH_REQUIRED: "true"
@@ -95,6 +107,9 @@ services:
     build: .
     command: celery -A backend.celery_app.celery_app beat --loglevel=INFO
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://voicerag:voicerag@postgres:5432/voicerag
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       migrate: {condition: service_completed_successfully}
       redis: {condition: service_healthy}
